@@ -2,6 +2,11 @@
 # behavior.
 version: 2
 
+release:
+  github:
+    owner: bogdanstate
+    name: terraform-provider-helmfile
+
 before:
   hooks:
   # this is just an example and not a requirement for provider building/publishing
