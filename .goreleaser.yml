@@ -4,7 +4,7 @@ version: 2
 
 release:
   github:
-    owner: bogdanstate
+    owner: Vibrant-Planet
     name: terraform-provider-helmfile
 
 before:
