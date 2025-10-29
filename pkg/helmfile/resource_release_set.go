@@ -30,6 +30,7 @@ const KeyDirty = "dirty"
 const KeyConcurrency = "concurrency"
 const KeyReleasesValues = "releases_values"
 const KeySkipDiffOnMissingFiles = "skip_diff_on_missing_files"
+const KeyEnableGoTemplate = "enable_go_template"
 
 const HelmfileDefaultPath = "helmfile.yaml"
 
@@ -171,6 +172,12 @@ var ReleaseSetSchema = map[string]*schema.Schema{
 		Type:     schema.TypeMap,
 		Optional: true,
 		ForceNew: false,
+	},
+	KeyEnableGoTemplate: {
+		Type:     schema.TypeBool,
+		Optional: true,
+		ForceNew: false,
+		Default:  false,
 	},
 }
 

@@ -51,6 +51,9 @@ type ReleaseSet struct {
 	HelmVersion     string
 	HelmDiffVersion string
 
+	// EnableGoTemplate enables Go template rendering by using .yaml.gotmpl extension for helmfile files
+	EnableGoTemplate bool
+
 	// SkipDiffOnMissingFiles is the list of local files. Any file contained in the list but missing on the file system
 	// result in the provider to skip running `helmfile-diff`. Use with Terraform's `depends_on`, so that
 	// you can let another dependent Terraform resource to created required files like kubeconfig or Helmfile values
@@ -122,6 +125,11 @@ func NewReleaseSet(d ResourceRead) (*ReleaseSet, error) {
 	if concurrency := d.Get(KeyConcurrency); concurrency != nil {
 		f.Concurrency = concurrency.(int)
 	}
+
+	if enableGoTemplate := d.Get(KeyEnableGoTemplate); enableGoTemplate != nil {
+		f.EnableGoTemplate = enableGoTemplate.(bool)
+	}
+
 	return &f, nil
 }
 
@@ -135,7 +143,14 @@ func NewCommandWithKubeconfig(fs *ReleaseSet, args ...string) (*exec.Cmd, error)
 	bs := []byte(fs.Content)
 	first := sha256.New()
 	first.Write(bs)
-	fs.TmpHelmFilePath = fmt.Sprintf("helmfile-%x.yaml", first.Sum(nil))
+
+	// Use .yaml.gotmpl extension when go template rendering is enabled
+	extension := ".yaml"
+	if fs.EnableGoTemplate {
+		extension = ".yaml.gotmpl"
+	}
+	fs.TmpHelmFilePath = fmt.Sprintf("helmfile-%x%s", first.Sum(nil), extension)
+
 	if err := ioutil.WriteFile(filepath.Join(fs.WorkingDirectory, fs.TmpHelmFilePath), bs, 0700); err != nil {
 		return nil, err
 	}
