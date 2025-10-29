@@ -31,6 +31,8 @@ const KeyConcurrency = "concurrency"
 const KeyReleasesValues = "releases_values"
 const KeySkipDiffOnMissingFiles = "skip_diff_on_missing_files"
 const KeyEnableGoTemplate = "enable_go_template"
+const KeyDryRun = "dry_run"
+const KeyTemplateOutput = "template_output"
 
 const HelmfileDefaultPath = "helmfile.yaml"
 
@@ -178,6 +180,18 @@ var ReleaseSetSchema = map[string]*schema.Schema{
 		Optional: true,
 		ForceNew: false,
 		Default:  false,
+	},
+	KeyDryRun: {
+		Type:        schema.TypeBool,
+		Optional:    true,
+		ForceNew:    false,
+		Default:     false,
+		Description: "When true, runs helmfile template instead of apply to render manifests without deploying",
+	},
+	KeyTemplateOutput: {
+		Type:        schema.TypeString,
+		Computed:    true,
+		Description: "Output from helmfile template when dry_run is enabled",
 	},
 }
 

@@ -49,4 +49,9 @@ EOF
   # Specify helmfile and helm versions
   version      = "0.150.0"
   helm_version = "3.12.0"
+
+  # Optional: Enable dry_run to render templates without deploying
+  # When enabled, runs 'helmfile template' instead of 'helmfile apply'
+  # The rendered manifests will be available in the 'template_output' attribute
+  # dry_run = true
 }

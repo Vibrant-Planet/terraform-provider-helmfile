@@ -39,6 +39,7 @@ Optional:
 - `concurrency` (Number)
 - `content` (String)
 - `dirty` (Boolean)
+- `dry_run` (Boolean) When true, runs helmfile template instead of apply to render manifests without deploying
 - `enable_go_template` (Boolean)
 - `environment` (String)
 - `environment_variables` (Map of String)
@@ -60,6 +61,7 @@ Read-Only:
 - `apply_output` (String)
 - `diff_output` (String)
 - `error` (String)
+- `template_output` (String) Output from helmfile template when dry_run is enabled
 
 <a id="nestedblock--embedded--aws_assume_role"></a>
 ### Nested Schema for `embedded.aws_assume_role`

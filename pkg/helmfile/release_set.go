@@ -54,6 +54,9 @@ type ReleaseSet struct {
 	// EnableGoTemplate enables Go template rendering by using .yaml.gotmpl extension for helmfile files
 	EnableGoTemplate bool
 
+	// DryRun when true runs helmfile template instead of apply to render manifests without deploying
+	DryRun bool
+
 	// SkipDiffOnMissingFiles is the list of local files. Any file contained in the list but missing on the file system
 	// result in the provider to skip running `helmfile-diff`. Use with Terraform's `depends_on`, so that
 	// you can let another dependent Terraform resource to created required files like kubeconfig or Helmfile values
@@ -128,6 +131,10 @@ func NewReleaseSet(d ResourceRead) (*ReleaseSet, error) {
 
 	if enableGoTemplate := d.Get(KeyEnableGoTemplate); enableGoTemplate != nil {
 		f.EnableGoTemplate = enableGoTemplate.(bool)
+	}
+
+	if dryRun := d.Get(KeyDryRun); dryRun != nil {
+		f.DryRun = dryRun.(bool)
 	}
 
 	return &f, nil
@@ -259,6 +266,18 @@ func getKubeconfig(fs *ReleaseSet) (*string, error) {
 func CreateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) error {
 	logf("[DEBUG] Creating release set resource...")
 
+	// Handle dry_run mode - just render templates without applying
+	if fs.DryRun {
+		logf("[DEBUG] Running in dry_run mode - rendering templates only...")
+		tmpl, err := runTemplate(ctx, fs)
+		if err != nil {
+			return fmt.Errorf("running helmfile template: %w", err)
+		}
+		d.Set(KeyTemplateOutput, tmpl.Output)
+		logf("[DEBUG] Template rendered successfully, output length: %d bytes", len(tmpl.Output))
+		return nil
+	}
+
 	diffFile, err := getDiffFile(ctx, fs)
 	if err != nil {
 		return fmt.Errorf("getting diff file: %w", err)
@@ -328,6 +347,7 @@ func ReadReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) error
 	// an empty string against an empty string, which is ovbiously not what we want.
 	d.Set(KeyDiffOutput, "")
 	d.Set(KeyApplyOutput, "")
+	d.Set(KeyTemplateOutput, "")
 
 	if fs.Kubeconfig == "" {
 		logf("Skipping helmfile-build due to that kubeconfig is empty, which means that this operation has been called on a helmfile resource that depends on in-existent resource")
@@ -793,6 +813,20 @@ func removeNondeterministicBuildLogLines(s string) (string, error) {
 }
 
 func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) error {
+	logf("[DEBUG] Updating release set resource...")
+
+	// Handle dry_run mode - just render templates without applying
+	if fs.DryRun {
+		logf("[DEBUG] Running in dry_run mode - rendering templates only...")
+		tmpl, err := runTemplate(ctx, fs)
+		if err != nil {
+			return fmt.Errorf("running helmfile template: %w", err)
+		}
+		d.Set(KeyTemplateOutput, tmpl.Output)
+		logf("[DEBUG] Template rendered successfully, output length: %d bytes", len(tmpl.Output))
+		return nil
+	}
+
 	diffFile, err := getDiffFile(ctx, fs)
 	if err != nil {
 		return err
@@ -805,8 +839,6 @@ func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) err
 			}
 		}
 	}()
-
-	logf("[DEBUG] Updating release set resource...")
 
 	d.Set(KeyDirty, false)
 

@@ -108,3 +108,72 @@ releases:
 	// Clean up
 	os.Remove(fullPath)
 }
+
+// TestDryRunField tests that the DryRun field is correctly set
+func TestDryRunField(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name            string
+		dryRun          bool
+		enableGoTemplate bool
+	}{
+		{
+			name:            "dry_run enabled with go template",
+			dryRun:          true,
+			enableGoTemplate: true,
+		},
+		{
+			name:            "dry_run disabled",
+			dryRun:          false,
+			enableGoTemplate: false,
+		},
+		{
+			name:            "dry_run enabled without go template",
+			dryRun:          true,
+			enableGoTemplate: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a ReleaseSet with test configuration
+			fs := &ReleaseSet{
+				Content:          "test: content",
+				WorkingDirectory: tempDir,
+				Kubeconfig:       "/tmp/kubeconfig",
+				DryRun:           tt.dryRun,
+				EnableGoTemplate: tt.enableGoTemplate,
+				Bin:              "helmfile",
+				HelmBin:          "helm",
+			}
+
+			// Verify the DryRun field is set correctly
+			if fs.DryRun != tt.dryRun {
+				t.Errorf("Expected DryRun to be %v, but got %v", tt.dryRun, fs.DryRun)
+			}
+
+			// Verify EnableGoTemplate is also set correctly
+			if fs.EnableGoTemplate != tt.enableGoTemplate {
+				t.Errorf("Expected EnableGoTemplate to be %v, but got %v", tt.enableGoTemplate, fs.EnableGoTemplate)
+			}
+
+			// When dry_run is enabled with go template, verify the file extension
+			if tt.dryRun && tt.enableGoTemplate {
+				_, err := NewCommandWithKubeconfig(fs, "version")
+				if err != nil {
+					t.Fatalf("NewCommandWithKubeconfig failed: %v", err)
+				}
+
+				if !strings.HasSuffix(fs.TmpHelmFilePath, ".yaml.gotmpl") {
+					t.Errorf("Expected file path to end with .yaml.gotmpl when both dry_run and enable_go_template are true, but got %q",
+						fs.TmpHelmFilePath)
+				}
+
+				// Clean up
+				fullPath := filepath.Join(tempDir, fs.TmpHelmFilePath)
+				os.Remove(fullPath)
+			}
+		})
+	}
+}

@@ -64,6 +64,11 @@ EOF
   # Specify helmfile and helm versions
   version      = "0.150.0"
   helm_version = "3.12.0"
+
+  # Optional: Enable dry_run to render templates without deploying
+  # When enabled, runs 'helmfile template' instead of 'helmfile apply'
+  # The rendered manifests will be available in the 'template_output' attribute
+  # dry_run = true
 }
 ```
 
@@ -83,6 +88,7 @@ EOF
 - `concurrency` (Number)
 - `content` (String)
 - `dirty` (Boolean)
+- `dry_run` (Boolean) When true, runs helmfile template instead of apply to render manifests without deploying
 - `enable_go_template` (Boolean)
 - `environment` (String)
 - `environment_variables` (Map of String)
@@ -105,6 +111,7 @@ EOF
 - `diff_output` (String)
 - `error` (String)
 - `id` (String) The ID of this resource.
+- `template_output` (String) Output from helmfile template when dry_run is enabled
 
 <a id="nestedblock--aws_assume_role"></a>
 ### Nested Schema for `aws_assume_role`
