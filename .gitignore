@@ -29,3 +29,10 @@ src/
 dist/
 examples/terraform.d
 *.iml
+poc/
+test-executor-modes/
+terraform-provider-helmfile
+MIGRATION_PLAN.md
+PHASE2_SUMMARY.md
+PHASE3_PROGRESS.md
+TESTING.md

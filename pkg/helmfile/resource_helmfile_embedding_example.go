@@ -47,6 +47,8 @@ func ExtractEmbeddedReleaseSetResources(data ResourceRead, attr string) ([]map[s
 }
 
 func resourceHelmfileEmbeddingExampleCreate(data *schema.ResourceData, i interface{}) error {
+	provider := i.(*ProviderInstance)
+
 	embeddedResources, err := ExtractEmbeddedReleaseSetResources(data, "embedded")
 	if err != nil {
 		return err
@@ -60,7 +62,7 @@ func resourceHelmfileEmbeddingExampleCreate(data *schema.ResourceData, i interfa
 			return err
 		}
 
-		if err := CreateReleaseSet(newContext(fs), rs, fs); err != nil {
+		if err := CreateReleaseSet(newContext(fs), rs, fs, provider.Executor); err != nil {
 			return err
 		}
 	}
@@ -83,6 +85,8 @@ func resourceHelmfileEmbeddingExampleCreate(data *schema.ResourceData, i interfa
 }
 
 func resourceHelmfileEmbeddingExampleDelete(data *schema.ResourceData, i interface{}) error {
+	provider := i.(*ProviderInstance)
+
 	embeddedResources, err := ExtractEmbeddedReleaseSetResources(data, "embedded")
 	if err != nil {
 		return err
@@ -96,7 +100,7 @@ func resourceHelmfileEmbeddingExampleDelete(data *schema.ResourceData, i interfa
 			return err
 		}
 
-		if err := DeleteReleaseSet(newContext(fs), rs, fs); err != nil {
+		if err := DeleteReleaseSet(newContext(fs), rs, fs, provider.Executor); err != nil {
 			return err
 		}
 	}
@@ -125,6 +129,8 @@ func resourceHelmfileEmbeddingExampleRead(data *schema.ResourceData, i interface
 }
 
 func resourceHelmfileEmbeddingExampleUpdate(data *schema.ResourceData, i interface{}) error {
+	provider := i.(*ProviderInstance)
+
 	embeddedResources, err := ExtractEmbeddedReleaseSetResources(data, "embedded")
 	if err != nil {
 		return err
@@ -138,7 +144,7 @@ func resourceHelmfileEmbeddingExampleUpdate(data *schema.ResourceData, i interfa
 			return err
 		}
 
-		if err := UpdateReleaseSet(newContext(fs), rs, fs); err != nil {
+		if err := UpdateReleaseSet(newContext(fs), rs, fs, provider.Executor); err != nil {
 			return err
 		}
 	}

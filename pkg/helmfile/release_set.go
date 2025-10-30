@@ -3,6 +3,7 @@ package helmfile
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -263,18 +264,30 @@ func getKubeconfig(fs *ReleaseSet) (*string, error) {
 	return &abs, nil
 }
 
-func CreateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) error {
+func CreateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, executor HelmfileExecutor) error {
 	logf("[DEBUG] Creating release set resource...")
+
+	// Prepare helmfile file
+	tmpFile, err := prepareHelmfileFile(fs)
+	if err != nil {
+		return fmt.Errorf("preparing helmfile file: %w", err)
+	}
+	defer os.Remove(tmpFile)
 
 	// Handle dry_run mode - just render templates without applying
 	if fs.DryRun {
 		logf("[DEBUG] Running in dry_run mode - rendering templates only...")
-		tmpl, err := runTemplate(ctx, fs)
+		opts := buildTemplateOptions(fs, tmpFile)
+		result, err := executor.Template(context.Background(), opts)
 		if err != nil {
+			// Include output in error message for better debugging
+			if result != nil && result.Output != "" {
+				return fmt.Errorf("running helmfile template: %w\nOutput:\n%s", err, result.Output)
+			}
 			return fmt.Errorf("running helmfile template: %w", err)
 		}
-		d.Set(KeyTemplateOutput, tmpl.Output)
-		logf("[DEBUG] Template rendered successfully, output length: %d bytes", len(tmpl.Output))
+		d.Set(KeyTemplateOutput, result.Output)
+		logf("[DEBUG] Template rendered successfully, output length: %d bytes", len(result.Output))
 		return nil
 	}
 
@@ -291,41 +304,19 @@ func CreateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) err
 		}
 	}()
 
-	args := []string{
-		"apply",
-		"--concurrency", strconv.Itoa(fs.Concurrency),
-		"--suppress-secrets",
-	}
-
-	additionalArgs, err := getAdditionalHelmfileApplyFlags(newContext(d), fs)
-	if err != nil {
-		return err
-	}
-
-	args = append(args, additionalArgs...)
-
-	for k, v := range fs.ReleasesValues {
-		args = append(args, "--set", fmt.Sprintf("%s=%s", k, v))
-	}
-
-	cmd, err := NewCommandWithKubeconfig(fs, args...)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	// Use executor interface for apply
+	opts := buildApplyOptions(fs, tmpFile)
 
 	//obtain exclusive lock
 	mutexKV.Lock(fs.WorkingDirectory)
 	defer mutexKV.Unlock(fs.WorkingDirectory)
 
-	state := NewState()
-	st, err := runCommand(ctx, cmd, state, false)
+	result, err := executor.Apply(context.Background(), opts)
 	if err != nil {
 		return fmt.Errorf("running helmfile-apply: %w", err)
 	}
 
-	d.Set(KeyApplyOutput, st.Output)
-	//SetDiffOutput(d, "")
+	d.Set(KeyApplyOutput, result.Output)
 
 	return nil
 }
@@ -812,18 +803,30 @@ func removeNondeterministicBuildLogLines(s string) (string, error) {
 	return buf.String(), nil
 }
 
-func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) error {
+func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, executor HelmfileExecutor) error {
 	logf("[DEBUG] Updating release set resource...")
+
+	// Prepare helmfile file
+	tmpFile, err := prepareHelmfileFile(fs)
+	if err != nil {
+		return fmt.Errorf("preparing helmfile file: %w", err)
+	}
+	defer os.Remove(tmpFile)
 
 	// Handle dry_run mode - just render templates without applying
 	if fs.DryRun {
 		logf("[DEBUG] Running in dry_run mode - rendering templates only...")
-		tmpl, err := runTemplate(ctx, fs)
+		opts := buildTemplateOptions(fs, tmpFile)
+		result, err := executor.Template(context.Background(), opts)
 		if err != nil {
+			// Include output in error message for better debugging
+			if result != nil && result.Output != "" {
+				return fmt.Errorf("running helmfile template: %w\nOutput:\n%s", err, result.Output)
+			}
 			return fmt.Errorf("running helmfile template: %w", err)
 		}
-		d.Set(KeyTemplateOutput, tmpl.Output)
-		logf("[DEBUG] Template rendered successfully, output length: %d bytes", len(tmpl.Output))
+		d.Set(KeyTemplateOutput, result.Output)
+		logf("[DEBUG] Template rendered successfully, output length: %d bytes", len(result.Output))
 		return nil
 	}
 
@@ -851,63 +854,44 @@ func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) err
 		return nil
 	}
 
-	args := []string{
-		"apply",
-		"--concurrency", strconv.Itoa(fs.Concurrency),
-		"--suppress-secrets",
-	}
-
-	additionalArgs, err := getAdditionalHelmfileApplyFlags(ctx, fs)
-	if err != nil {
-		return err
-	}
-
-	args = append(args, additionalArgs...)
-
-	for k, v := range fs.ReleasesValues {
-		args = append(args, "--set", fmt.Sprintf("%s=%s", k, v))
-	}
-
-	cmd, err := NewCommandWithKubeconfig(fs, args...)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	// Use executor interface for apply
+	opts := buildApplyOptions(fs, tmpFile)
 
 	//obtain exclusive lock
 	mutexKV.Lock(fs.WorkingDirectory)
 	defer mutexKV.Unlock(fs.WorkingDirectory)
 
-	state := NewState()
-	st, err := runCommand(ctx, cmd, state, false)
+	result, err := executor.Apply(context.Background(), opts)
 	if err != nil {
 		return err
 	}
 
-	d.Set(KeyApplyOutput, st.Output)
+	d.Set(KeyApplyOutput, result.Output)
 
 	return nil
 }
 
-func DeleteReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite) error {
+func DeleteReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, executor HelmfileExecutor) error {
 	logf("[DEBUG] Deleting release set resource...")
-	cmd, err := NewCommandWithKubeconfig(fs, "destroy")
+
+	// Prepare helmfile file
+	tmpFile, err := prepareHelmfileFile(fs)
 	if err != nil {
-		return err
+		return fmt.Errorf("preparing helmfile file: %w", err)
 	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	defer os.Remove(tmpFile)
+
+	// Use executor interface for destroy
+	opts := buildDestroyOptions(fs, tmpFile)
 
 	//obtain exclusive lock
 	mutexKV.Lock(fs.WorkingDirectory)
 	defer mutexKV.Unlock(fs.WorkingDirectory)
 
-	state := NewState()
-	_, err = runCommand(ctx, cmd, state, false)
+	_, err = executor.Destroy(context.Background(), opts)
 	if err != nil {
 		return err
 	}
-
-	//SetDiffOutput(d, "")
 
 	return nil
 }

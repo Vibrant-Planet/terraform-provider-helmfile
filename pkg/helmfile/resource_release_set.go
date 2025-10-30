@@ -217,12 +217,14 @@ func resourceReleaseSetCreate(d *schema.ResourceData, meta interface{}) (finalEr
 		}
 	}()
 
+	provider := meta.(*ProviderInstance)
+
 	fs, err := NewReleaseSet(d)
 	if err != nil {
 		return err
 	}
 
-	if err := CreateReleaseSet(newContext(d), fs, d); err != nil {
+	if err := CreateReleaseSet(newContext(d), fs, d, provider.Executor); err != nil {
 		return fmt.Errorf("creating release set: %w", err)
 	}
 
@@ -304,7 +306,11 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 		// This `plan` includes the implicit/automatic plan that is conducted before `terraform destroy`.
 		// So, on `plan` helmfile diff can fail due to the missing KUBECONFIG. If we did return an error for that,
 		// `terraform plan` or `terraform destroy` on helmfile_release_set will never succeed if the dependant resource is missing.
-		if *kubeconfig != "" {
+
+		// Also ignore "Kubernetes cluster unreachable" errors which can happen with dummy/test kubeconfigs
+		if strings.Contains(err.Error(), "Kubernetes cluster unreachable") {
+			log.Printf("Ignoring helmfile-diff error because Kubernetes cluster is unreachable (may be using dummy kubeconfig or cluster not available): %v", err)
+		} else if *kubeconfig != "" {
 			// kubeconfig can be also empty when the kubeconfig path is static but not generated when terraform triggers
 			// diff on this release_set.
 			// We detect that situation by looking for the file.
@@ -313,12 +319,13 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 			// In code below, `info == nil` or `os.IsNotExist(err)` means that the file is in-existent.
 			if info, _ := os.Stat(*kubeconfig); info != nil {
 				return fmt.Errorf("diffing release set: %w", err)
+			} else {
+				log.Printf("Ignoring helmfile-diff error on plan because kubeconfig file does not exist yet: %v", err)
 			}
-		} else if !strings.Contains(err.Error(), "Kubernetes cluster unreachable") {
-			return fmt.Errorf("diffing release set: %w", err)
+		} else {
+			log.Printf("Ignoring helmfile-diff error on plan because it may be due to that terraform's behaviour that "+
+				"helmfile_releaset_set.kubeconfig that depends on another missing resource can be empty: %v", err)
 		}
-		log.Printf("Ignoring helmfile-diff error on plan because it may be due to that terraform's behaviour that "+
-			"helmfile_releaset_set.kubeconfig that depends on another missing resource can be empty: %v", err)
 	}
 
 	if diff != "" {
@@ -335,12 +342,14 @@ func resourceReleaseSetUpdate(d *schema.ResourceData, meta interface{}) (finalEr
 		}
 	}()
 
+	provider := meta.(*ProviderInstance)
+
 	fs, err := NewReleaseSet(d)
 	if err != nil {
 		return err
 	}
 
-	return UpdateReleaseSet(newContext(d), fs, d)
+	return UpdateReleaseSet(newContext(d), fs, d, provider.Executor)
 }
 
 func resourceReleaseSetDelete(d *schema.ResourceData, meta interface{}) (finalErr error) {
@@ -350,12 +359,14 @@ func resourceReleaseSetDelete(d *schema.ResourceData, meta interface{}) (finalEr
 		}
 	}()
 
+	provider := meta.(*ProviderInstance)
+
 	fs, err := NewReleaseSet(d)
 	if err != nil {
 		return err
 	}
 
-	if err := DeleteReleaseSet(newContext(d), fs, d); err != nil {
+	if err := DeleteReleaseSet(newContext(d), fs, d, provider.Executor); err != nil {
 		return err
 	}
 

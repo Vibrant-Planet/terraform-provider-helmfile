@@ -162,19 +162,21 @@ func resourceHelmfileRelease() *schema.Resource {
 }
 
 //helpers to unwravel the recursive bits by adding a base condition
-func resourceHelmfileReleaseCreate(d *schema.ResourceData, _ interface{}) (finalErr error) {
+func resourceHelmfileReleaseCreate(d *schema.ResourceData, meta interface{}) (finalErr error) {
 	defer func() {
 		if err := recover(); err != nil {
 			finalErr = fmt.Errorf("unhandled error: %v\n%s", err, debug.Stack())
 		}
 	}()
 
+	provider := meta.(*ProviderInstance)
+
 	rs, err := NewReleaseSetWithSingleRelease(d)
 	if err != nil {
 		return err
 	}
 
-	if err := CreateReleaseSet(newContext(d), rs, d); err != nil {
+	if err := CreateReleaseSet(newContext(d), rs, d, provider.Executor); err != nil {
 		return err
 	}
 
@@ -202,19 +204,21 @@ func resourceHelmfileReleaseRead(d *schema.ResourceData, _ interface{}) (finalEr
 	return ReadReleaseSet(newContext(d), rs, d)
 }
 
-func resourceHelmfileReleaseUpdate(d *schema.ResourceData, _ interface{}) (finalErr error) {
+func resourceHelmfileReleaseUpdate(d *schema.ResourceData, meta interface{}) (finalErr error) {
 	defer func() {
 		if err := recover(); err != nil {
 			finalErr = fmt.Errorf("unhandled error: %v\n%s", err, debug.Stack())
 		}
 	}()
 
+	provider := meta.(*ProviderInstance)
+
 	rs, err := NewReleaseSetWithSingleRelease(d)
 	if err != nil {
 		return err
 	}
 
-	return UpdateReleaseSet(newContext(d), rs, d)
+	return UpdateReleaseSet(newContext(d), rs, d, provider.Executor)
 }
 
 func resourceHelmfileReleaseDiff(d *schema.ResourceDiff, _ interface{}) (finalErr error) {
@@ -243,19 +247,21 @@ func resourceHelmfileReleaseDiff(d *schema.ResourceDiff, _ interface{}) (finalEr
 	return nil
 }
 
-func resourceHelmfileReleaseDelete(d *schema.ResourceData, _ interface{}) (finalErr error) {
+func resourceHelmfileReleaseDelete(d *schema.ResourceData, meta interface{}) (finalErr error) {
 	defer func() {
 		if err := recover(); err != nil {
 			finalErr = fmt.Errorf("unhandled error: %v\n%s", err, debug.Stack())
 		}
 	}()
 
+	provider := meta.(*ProviderInstance)
+
 	rs, err := NewReleaseSetWithSingleRelease(d)
 	if err != nil {
 		return err
 	}
 
-	if err := DeleteReleaseSet(newContext(d), rs, d); err != nil {
+	if err := DeleteReleaseSet(newContext(d), rs, d, provider.Executor); err != nil {
 		return err
 	}
 
