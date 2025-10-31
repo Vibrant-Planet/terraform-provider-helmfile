@@ -313,6 +313,10 @@ func CreateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, exe
 
 	result, err := executor.Apply(context.Background(), opts)
 	if err != nil {
+		// Include output in error message for better debugging
+		if result != nil && result.Output != "" {
+			return fmt.Errorf("running helmfile-apply: %w\nOutput:\n%s", err, result.Output)
+		}
 		return fmt.Errorf("running helmfile-apply: %w", err)
 	}
 
@@ -863,7 +867,11 @@ func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, exe
 
 	result, err := executor.Apply(context.Background(), opts)
 	if err != nil {
-		return err
+		// Include output in error message for better debugging
+		if result != nil && result.Output != "" {
+			return fmt.Errorf("running helmfile-apply: %w\nOutput:\n%s", err, result.Output)
+		}
+		return fmt.Errorf("running helmfile-apply: %w", err)
 	}
 
 	d.Set(KeyApplyOutput, result.Output)

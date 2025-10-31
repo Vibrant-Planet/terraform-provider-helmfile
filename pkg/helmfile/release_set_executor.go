@@ -11,6 +11,7 @@ import (
 )
 
 // prepareHelmfileFile writes the helmfile content to a temporary file and returns the path
+// It also writes temporary values files and updates fs.ValuesFiles with their paths
 func prepareHelmfileFile(fs *ReleaseSet) (string, error) {
 	if fs.WorkingDirectory != "" {
 		if err := os.MkdirAll(fs.WorkingDirectory, 0755); err != nil {
@@ -34,7 +35,8 @@ func prepareHelmfileFile(fs *ReleaseSet) (string, error) {
 		return "", err
 	}
 
-	// Also write values files
+	// Also write values files and collect their paths
+	tempValuesPaths := make([]interface{}, 0, len(fs.Values))
 	for _, vs := range fs.Values {
 		js := []byte(fmt.Sprintf("%s", vs))
 
@@ -54,7 +56,20 @@ func prepareHelmfileFile(fs *ReleaseSet) (string, error) {
 		if err := ioutil.WriteFile(abspath, js, 0700); err != nil {
 			return "", err
 		}
+
+		// Add the temp file path to ValuesFiles so library executor can find it
+		tempValuesPaths = append(tempValuesPaths, abspath)
 	}
+
+	// Merge temp values paths with existing ValuesFiles
+	// Put temp values first, then existing ValuesFiles (later values override earlier ones in helmfile)
+	if len(tempValuesPaths) > 0 {
+		fs.ValuesFiles = append(tempValuesPaths, fs.ValuesFiles...)
+	}
+
+	// Clear fs.Values since we've converted them all to files
+	// This prevents the library executor from trying to use the YAML content as file paths
+	fs.Values = nil
 
 	return tmpFilePath, nil
 }
@@ -86,10 +101,11 @@ func buildBaseOptions(fs *ReleaseSet, tmpFile string) *BaseOptions {
 // buildApplyOptions creates ApplyOptions from ReleaseSet
 func buildApplyOptions(fs *ReleaseSet, tmpFile string) *ApplyOptions {
 	return &ApplyOptions{
-		BaseOptions:     *buildBaseOptions(fs, tmpFile),
-		Concurrency:     fs.Concurrency,
-		ReleasesValues:  fs.ReleasesValues,
-		SuppressSecrets: true,
+		BaseOptions:       *buildBaseOptions(fs, tmpFile),
+		Concurrency:       fs.Concurrency,
+		ReleasesValues:    fs.ReleasesValues,
+		SuppressSecrets:   true,
+		SkipDiffOnInstall: true, // Skip diff on install to avoid exit code 1 "errors"
 	}
 }
 

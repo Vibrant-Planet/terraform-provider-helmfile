@@ -8,7 +8,6 @@ import (
 
 const (
 	KeyMaxDiffOutputLen = "max_diff_output_len"
-	KeyUseLibrary       = "use_library"
 )
 
 // Provider returns a terraform.ResourceProvider.
@@ -21,13 +20,6 @@ func Provider() terraform.ResourceProvider {
 				ForceNew:    false,
 				Default:     4096,
 				Description: "Maximum length of helmfile diff output before truncation",
-			},
-			KeyUseLibrary: {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				ForceNew:    false,
-				Default:     false,
-				Description: "Use helmfile Go library instead of binary execution (experimental)",
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{

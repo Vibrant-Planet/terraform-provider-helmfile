@@ -68,8 +68,9 @@ func (c *baseConfigProvider) StripArgsValuesOnExitError() bool   { return false 
 // applyConfigProvider implements app.ApplyConfigProvider
 type applyConfigProvider struct {
 	*baseConfigProvider
-	concurrency     int
-	suppressSecrets bool
+	concurrency       int
+	suppressSecrets   bool
+	skipDiffOnInstall bool
 }
 
 // Implement additional methods for ApplyConfigProvider
@@ -105,7 +106,7 @@ func (c *applyConfigProvider) ResetValues() bool         { return false }
 func (c *applyConfigProvider) RetainValuesFiles() bool   { return false }
 func (c *applyConfigProvider) ReuseValues() bool         { return false }
 func (c *applyConfigProvider) SkipCRDs() bool            { return false }
-func (c *applyConfigProvider) SkipDiffOnInstall() bool   { return false }
+func (c *applyConfigProvider) SkipDiffOnInstall() bool   { return c.skipDiffOnInstall }
 func (c *applyConfigProvider) StripTrailingCR() bool     { return false }
 func (c *applyConfigProvider) SuppressOutputLineRegex() []string { return nil }
 func (c *applyConfigProvider) SyncArgs() string          { return "" }

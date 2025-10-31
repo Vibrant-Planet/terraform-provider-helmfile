@@ -276,6 +276,13 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 		return err
 	}
 
+	// When dry_run is enabled, skip diff entirely
+	// dry_run mode is for validation/testing only, not for managing actual cluster state
+	if fs.DryRun {
+		logf("Skipping helmfile-diff because dry_run is enabled (template validation mode)")
+		return nil
+	}
+
 	kubeconfig, err := getKubeconfig(fs)
 	if err != nil {
 		return fmt.Errorf("getting kubeconfig: %w", err)
