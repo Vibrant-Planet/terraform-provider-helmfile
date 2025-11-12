@@ -43,6 +43,9 @@ type ReleaseSet struct {
 	// Kubeconfig is the file path to kubeconfig which is set to the KUBECONFIG environment variable on running helmfile
 	Kubeconfig string
 
+	// GeneratedKubeconfig is the path to auto-generated kubeconfig file (for cleanup)
+	GeneratedKubeconfig string
+
 	Concurrency int
 
 	// Version is the version number or the semver version range for the helmfile version to use
@@ -114,7 +117,80 @@ func NewReleaseSet(d ResourceRead) (*ReleaseSet, error) {
 	f.Bin = d.Get(KeyBin).(string)
 	f.WorkingDirectory = d.Get(KeyWorkingDirectory).(string)
 
-	f.Kubeconfig = d.Get(KeyKubeconfig).(string)
+	kubeconfig := d.Get(KeyKubeconfig).(string)
+	eksClusterName := d.Get(KeyEKSClusterName).(string)
+
+	// Validate EKS configuration
+	if err := validateEKSConfiguration(d); err != nil {
+		return nil, err
+	}
+
+	// If EKS cluster name provided and no kubeconfig, generate it
+	var generatedKubeconfig string
+	if eksClusterName != "" && kubeconfig == "" {
+		ctx := newContext(d)
+		region := getEKSRegion(d)
+
+		logf("Generating kubeconfig for EKS cluster: %s in region: %s", eksClusterName, region)
+
+		// Check if endpoint and CA are manually provided
+		manualEndpoint := d.Get(KeyEKSClusterEndpoint).(string)
+		manualCA := d.Get(KeyEKSClusterCA).(string)
+
+		var clusterConfig *EKSClusterConfig
+
+		if manualEndpoint != "" && manualCA != "" {
+			// Use manually provided values
+			logf("Using manually provided EKS cluster endpoint and CA")
+			awsProfile := d.Get(KeyAWSProfile).(string)
+			clusterConfig = &EKSClusterConfig{
+				ClusterName: eksClusterName,
+				Region:      region,
+				Endpoint:    manualEndpoint,
+				CA:          manualCA,
+				AWSProfile:  awsProfile,
+			}
+		} else {
+			// Fetch cluster info from AWS
+			logf("Fetching EKS cluster info from AWS API")
+			var err error
+			clusterConfig, err = fetchEKSClusterInfo(ctx, eksClusterName, region)
+			if err != nil {
+				return nil, fmt.Errorf("fetching EKS cluster info: %w", err)
+			}
+
+			// Add AWS profile to cluster config
+			clusterConfig.AWSProfile = d.Get(KeyAWSProfile).(string)
+
+			// Store computed values back to schema
+			if setter, ok := d.(ResourceReadWrite); ok {
+				setter.Set(KeyEKSClusterEndpoint, clusterConfig.Endpoint)
+				setter.Set(KeyEKSClusterCA, clusterConfig.CA)
+			}
+		}
+
+		// Generate kubeconfig YAML
+		kubeconfigYAML, err := generateKubeconfigYAML(clusterConfig)
+		if err != nil {
+			return nil, fmt.Errorf("generating kubeconfig: %w", err)
+		}
+
+		// Write to temporary file
+		generatedKubeconfig, err = writeTemporaryKubeconfig(kubeconfigYAML, f.WorkingDirectory, eksClusterName)
+		if err != nil {
+			return nil, fmt.Errorf("writing kubeconfig: %w", err)
+		}
+
+		kubeconfig = generatedKubeconfig
+
+		// Store computed kubeconfig path back to schema
+		if setter, ok := d.(ResourceReadWrite); ok {
+			setter.Set(KeyKubeconfig, kubeconfig)
+		}
+	}
+
+	f.Kubeconfig = kubeconfig
+	f.GeneratedKubeconfig = generatedKubeconfig
 
 	f.Version = d.Get(KeyVersion).(string)
 	f.HelmVersion = d.Get(KeyHelmVersion).(string)
@@ -882,6 +958,15 @@ func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, exe
 func DeleteReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, executor HelmfileExecutor) error {
 	logf("[DEBUG] Deleting release set resource...")
 
+	// Cleanup generated kubeconfig before destroying resources
+	// Do this first to ensure cleanup happens even if destroy fails
+	if fs.GeneratedKubeconfig != "" {
+		if err := cleanupKubeconfig(fs.GeneratedKubeconfig); err != nil {
+			logf("Warning: failed to cleanup generated kubeconfig: %v", err)
+			// Don't fail the delete operation due to cleanup failure
+		}
+	}
+
 	// Prepare helmfile file
 	tmpFile, err := prepareHelmfileFile(fs)
 	if err != nil {
@@ -921,4 +1006,41 @@ func ImportReleaseSet(d *schema.ResourceData) (*schema.ResourceData, error) {
 	d.Set(KeyContent, string(content))
 
 	return d, nil
+}
+
+// validateEKSConfiguration validates EKS-related configuration parameters
+func validateEKSConfiguration(d ResourceRead) error {
+	kubeconfig := d.Get(KeyKubeconfig).(string)
+	eksClusterName := d.Get(KeyEKSClusterName).(string)
+	eksClusterRegion := d.Get(KeyEKSClusterRegion).(string)
+	awsRegion := d.Get(KeyAWSRegion).(string)
+	eksEndpoint := d.Get(KeyEKSClusterEndpoint).(string)
+	eksCA := d.Get(KeyEKSClusterCA).(string)
+
+	// Either kubeconfig or eks_cluster_name must be provided
+	if kubeconfig == "" && eksClusterName == "" {
+		return fmt.Errorf("either 'kubeconfig' or 'eks_cluster_name' must be provided")
+	}
+
+	// If kubeconfig is provided, skip EKS validation (kubeconfig takes precedence)
+	if kubeconfig != "" {
+		return nil
+	}
+
+	// If eks_cluster_name is not set, no further EKS validation needed
+	if eksClusterName == "" {
+		return nil
+	}
+
+	// If eks_cluster_name is set, need either eks_cluster_region or aws_region
+	if eksClusterRegion == "" && awsRegion == "" {
+		return fmt.Errorf("when eks_cluster_name is set, either eks_cluster_region or aws_region must be provided")
+	}
+
+	// Validate endpoint/CA provided together (if manually specified)
+	if (eksEndpoint != "" && eksCA == "") || (eksEndpoint == "" && eksCA != "") {
+		return fmt.Errorf("eks_cluster_endpoint and eks_cluster_ca must be provided together or both omitted for auto-discovery")
+	}
+
+	return nil
 }

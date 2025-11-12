@@ -97,9 +97,11 @@ var ReleaseSetSchema = map[string]*schema.Schema{
 		Default:  "",
 	},
 	KeyKubeconfig: {
-		Type:     schema.TypeString,
-		Required: true,
-		ForceNew: false,
+		Type:        schema.TypeString,
+		Optional:    true,
+		Computed:    true,
+		ForceNew:    false,
+		Description: "Path to kubeconfig file. Optional when eks_cluster_name is provided.",
 	},
 	KeyPath: {
 		Type:     schema.TypeString,
@@ -192,6 +194,31 @@ var ReleaseSetSchema = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Computed:    true,
 		Description: "Output from helmfile template when dry_run is enabled",
+	},
+	KeyEKSClusterName: {
+		Type:        schema.TypeString,
+		Optional:    true,
+		ForceNew:    false,
+		Description: "EKS cluster name for automatic kubeconfig generation",
+	},
+	KeyEKSClusterRegion: {
+		Type:        schema.TypeString,
+		Optional:    true,
+		ForceNew:    false,
+		Description: "AWS region for EKS cluster (defaults to aws_region if not set)",
+	},
+	KeyEKSClusterEndpoint: {
+		Type:        schema.TypeString,
+		Optional:    true,
+		Computed:    true,
+		Description: "EKS cluster endpoint (auto-discovered from AWS if not provided)",
+	},
+	KeyEKSClusterCA: {
+		Type:        schema.TypeString,
+		Optional:    true,
+		Computed:    true,
+		Sensitive:   true,
+		Description: "EKS cluster certificate authority data (auto-discovered from AWS if not provided)",
 	},
 }
 

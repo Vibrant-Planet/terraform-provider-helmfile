@@ -309,6 +309,129 @@ credentials provider that reads the environment variables to call `aws eks get-t
 See https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html for more information on how authentication
 works on EKS.
 
+### EKS Automatic Kubeconfig Generation
+
+The provider can automatically generate kubeconfig files for EKS clusters, eliminating the need to manage kubeconfig files manually.
+
+When you provide `eks_cluster_name`, the provider will:
+1. Call the AWS EKS API to fetch cluster endpoint and CA certificate
+2. Generate a temporary kubeconfig file with AWS exec plugin authentication
+3. Use this kubeconfig for all helmfile operations
+4. Clean up the temporary file when the resource is destroyed
+
+#### Basic Usage
+
+Minimal configuration - just provide cluster name and region:
+
+```hcl
+resource "helmfile_release_set" "mystack" {
+  eks_cluster_name = "my-eks-cluster"
+  aws_region       = "us-west-2"
+
+  # No kubeconfig needed! Provider auto-generates it
+
+  environment = "prod"
+  content = file("./helmfile.yaml")
+}
+```
+
+#### With AWS AssumeRole
+
+Use with cross-account or role-based access:
+
+```hcl
+resource "helmfile_release_set" "mystack" {
+  eks_cluster_name   = "my-eks-cluster"
+  eks_cluster_region = "us-west-2"  # Can differ from assumed role region
+
+  aws_region = "us-east-1"
+  aws_profile = "terraform"
+  aws_assume_role {
+    role_arn = "arn:aws:iam::123456789:role/EKSAdmin"
+  }
+
+  environment = "prod"
+  content = file("./helmfile.yaml")
+}
+```
+
+#### Integration with Terraform AWS Provider
+
+Seamlessly integrate with other Terraform resources:
+
+```hcl
+data "aws_eks_cluster" "cluster" {
+  name = "my-eks-cluster"
+}
+
+resource "helmfile_release_set" "mystack" {
+  eks_cluster_name = data.aws_eks_cluster.cluster.name
+  aws_region       = data.aws_eks_cluster.cluster.arn
+
+  # The provider will fetch cluster details automatically
+
+  environment = "prod"
+  content = file("./helmfile.yaml")
+
+  # Can reference cluster attributes
+  environment_variables = {
+    CLUSTER_ENDPOINT = data.aws_eks_cluster.cluster.endpoint
+  }
+}
+```
+
+#### Manual Endpoint and CA Override
+
+Skip the AWS API call by providing cluster details manually:
+
+```hcl
+resource "helmfile_release_set" "mystack" {
+  eks_cluster_name = "my-eks-cluster"
+
+  # Manually provide cluster details (skips AWS API call)
+  eks_cluster_endpoint = "https://ABC123.gr7.us-west-2.eks.amazonaws.com"
+  eks_cluster_ca       = "LS0tLS1CRUdJTi..." # base64 encoded CA
+
+  aws_region = "us-west-2"
+
+  environment = "prod"
+  content = file("./helmfile.yaml")
+}
+```
+
+#### Complete Override with Custom Kubeconfig
+
+You can still provide a custom kubeconfig to override auto-generation entirely:
+
+```hcl
+resource "helmfile_release_set" "mystack" {
+  eks_cluster_name = "my-eks-cluster"  # Informational only
+
+  # Custom kubeconfig takes precedence
+  kubeconfig = "/custom/path/to/kubeconfig"
+
+  environment = "prod"
+  content = file("./helmfile.yaml")
+}
+```
+
+#### How It Works
+
+The provider generates a kubeconfig with the AWS exec plugin for authentication:
+
+1. **Cluster Discovery**: Calls `eks:DescribeCluster` to get endpoint and CA certificate
+2. **Kubeconfig Generation**: Creates a kubeconfig using the AWS exec plugin pattern
+3. **Authentication**: kubectl/helm authenticate using `aws eks get-token` command
+4. **Cleanup**: Temporary kubeconfig is removed on resource deletion
+
+The generated kubeconfig uses the same AWS credentials (profile, region, assume role) that you configured for the provider, ensuring consistent authentication across all operations.
+
+#### Requirements
+
+- AWS credentials with `eks:DescribeCluster` permission
+- `aws` CLI available in PATH (used by kubectl for authentication)
+- IAM permissions to access the EKS cluster (kubernetes RBAC)
+
 ## Develop
 If you wish to build this yourself, follow the instructions:
 

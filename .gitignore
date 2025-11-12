@@ -36,3 +36,8 @@ MIGRATION_PLAN.md
 PHASE2_SUMMARY.md
 PHASE3_PROGRESS.md
 TESTING.md
+
+# Test artifacts and temporary directories
+pkg/helmfile/.terraform*
+pkg/helmfile/.shoal/
+.terraform.lock.hcl
