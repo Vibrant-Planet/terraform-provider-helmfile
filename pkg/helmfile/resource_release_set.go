@@ -318,6 +318,11 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 	if fs.Kubeconfig == "" {
 		logf("Skipping helmfile-diff due to that kubeconfig is empty, which means that this operation has been called on a helmfile resource that depends on in-existent resource")
 
+		// Mark outputs as unknown so that plan expansion doesn't fail when
+		// the dependency becomes available and helmfile diff produces output.
+		d.SetNewComputed(KeyDiffOutput)
+		d.SetNewComputed(KeyApplyOutput)
+
 		return nil
 	}
 
@@ -325,6 +330,9 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 		return xerrors.Errorf("checking skip_diff_on_missing_files to determine if the provider needs to run helmfile-diff: %w", err)
 	} else if !v {
 		logf("Skipping helmfile-diff due to that one or more files listed in skip_diff_on_missing_files were missing")
+
+		d.SetNewComputed(KeyDiffOutput)
+		d.SetNewComputed(KeyApplyOutput)
 
 		return nil
 	}
@@ -344,6 +352,8 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 		// Also ignore "Kubernetes cluster unreachable" errors which can happen with dummy/test kubeconfigs
 		if strings.Contains(err.Error(), "Kubernetes cluster unreachable") {
 			log.Printf("Ignoring helmfile-diff error because Kubernetes cluster is unreachable (may be using dummy kubeconfig or cluster not available): %v", err)
+			d.SetNewComputed(KeyDiffOutput)
+			d.SetNewComputed(KeyApplyOutput)
 		} else if *kubeconfig != "" {
 			// kubeconfig can be also empty when the kubeconfig path is static but not generated when terraform triggers
 			// diff on this release_set.
@@ -355,10 +365,14 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 				return fmt.Errorf("diffing release set: %w", err)
 			} else {
 				log.Printf("Ignoring helmfile-diff error on plan because kubeconfig file does not exist yet: %v", err)
+				d.SetNewComputed(KeyDiffOutput)
+				d.SetNewComputed(KeyApplyOutput)
 			}
 		} else {
 			log.Printf("Ignoring helmfile-diff error on plan because it may be due to that terraform's behaviour that "+
 				"helmfile_releaset_set.kubeconfig that depends on another missing resource can be empty: %v", err)
+			d.SetNewComputed(KeyDiffOutput)
+			d.SetNewComputed(KeyApplyOutput)
 		}
 	}
 
