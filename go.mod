@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/Masterminds/semver v1.5.0
+	github.com/aws/aws-sdk-go v1.51.6
 	github.com/davecgh/go-spew v1.1.1
 	github.com/hashicorp/terraform-plugin-sdk v1.0.0
 	github.com/helmfile/helmfile v0.163.1
@@ -13,6 +14,7 @@ require (
 	github.com/rs/xid v1.2.1
 	go.uber.org/zap v1.27.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -60,7 +62,6 @@ require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go v1.51.6 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.21.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.14 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.18.44 // indirect
@@ -296,7 +297,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v3 v3.14.3 // indirect
 	k8s.io/api v0.29.3 // indirect
