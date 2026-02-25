@@ -376,11 +376,43 @@ func resourceReleaseSetDiff(d *schema.ResourceDiff, meta interface{}) (finalErr 
 		}
 	}
 
-	if diff != "" {
-		d.SetNewComputed(KeyApplyOutput)
+	releaseSetInputKeys := []string{
+		KeyValues, KeyValuesFiles, KeyContent, KeyPath, KeyWorkingDirectory,
+		KeyEnvironment, KeyEnvironmentVariables, KeyBin, KeyHelmBin,
+		KeySelector, KeySelectors, KeyKubeconfig,
 	}
+	markDiffOutputs(d, diff, releaseSetInputKeys)
 
 	return nil
+}
+
+// diffChecker abstracts the HasChange/SetNewComputed methods of schema.ResourceDiff
+// for testability.
+type diffChecker interface {
+	HasChange(key string) bool
+	SetNewComputed(key string) error
+}
+
+// markDiffOutputs marks diff_output and apply_output as computed when input attributes
+// have changed, preventing "inconsistent final plan" errors. When Terraform re-evaluates
+// CustomizeDiff during apply's plan expansion with resolved values from dependent
+// resources, the helmfile diff result may change. Marking outputs as computed tells
+// Terraform these values will be determined during apply.
+func markDiffOutputs(d diffChecker, diff string, inputKeys []string) {
+	hasInputChanges := false
+	for _, key := range inputKeys {
+		if d.HasChange(key) {
+			hasInputChanges = true
+			break
+		}
+	}
+
+	if hasInputChanges {
+		d.SetNewComputed(KeyDiffOutput)
+		d.SetNewComputed(KeyApplyOutput)
+	} else if diff != "" {
+		d.SetNewComputed(KeyApplyOutput)
+	}
 }
 
 func resourceReleaseSetUpdate(d *schema.ResourceData, meta interface{}) (finalErr error) {

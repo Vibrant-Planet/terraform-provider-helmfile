@@ -3,12 +3,11 @@ package helmfile
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mumoshu/terraform-provider-eksctl/pkg/sdk/tfsdk"
-	"github.com/rs/xid"
-	"golang.org/x/xerrors"
 	"runtime/debug"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/mumoshu/terraform-provider-eksctl/pkg/sdk/tfsdk"
+	"github.com/rs/xid"
 )
 
 const KeyNamespace = "namespace"
@@ -238,11 +237,12 @@ func resourceHelmfileReleaseDiff(d *schema.ResourceDiff, _ interface{}) (finalEr
 		return err
 	}
 
-	if diff != "" {
-		if err := d.SetNewComputed(KeyApplyOutput); err != nil {
-			return xerrors.Errorf("setting new computed %s: %w", KeyApplyOutput, err)
-		}
+	releaseInputKeys := []string{
+		KeyValues, KeyChart, KeyVersion, KeyWorkingDirectory,
+		KeyKubeconfig, KeyKubecontext, KeyBin, KeyHelmBin,
+		KeyNamespace, KeyName,
 	}
+	markDiffOutputs(d, diff, releaseInputKeys)
 
 	return nil
 }
