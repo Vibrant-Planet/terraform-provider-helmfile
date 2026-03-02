@@ -925,14 +925,11 @@ func UpdateReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, exe
 
 	d.Set(KeyDirty, false)
 
-	var plannedDiffOutput string
-	if v := d.Get(KeyDiffOutput); v != nil {
-		plannedDiffOutput = v.(string)
-	}
-
-	if plannedDiffOutput == "" {
-		return nil
-	}
+	// Always proceed with apply when UpdateReleaseSet is called.
+	// Terraform only invokes Update when it has detected changes, so
+	// skipping based on diff_output being empty is incorrect — especially
+	// when diff_output was marked as computed (SetNewComputed) during
+	// CustomizeDiff, which causes d.Get(KeyDiffOutput) to return "".
 
 	// Use executor interface for apply
 	opts := buildApplyOptions(fs, tmpFile)
