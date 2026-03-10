@@ -64,6 +64,10 @@ func (c *baseConfigProvider) DisableForceUpdate() bool           { return false 
 func (c *baseConfigProvider) Env() string                        { return c.environment }
 func (c *baseConfigProvider) Kubeconfig() string                 { return c.kubeconfig }
 func (c *baseConfigProvider) StripArgsValuesOnExitError() bool   { return false }
+func (c *baseConfigProvider) EnforcePluginVerification() bool    { return false }
+func (c *baseConfigProvider) HelmOCIPlainHTTP() bool             { return false }
+func (c *baseConfigProvider) SkipRefresh() bool                  { return false }
+func (c *baseConfigProvider) SequentialHelmfiles() bool          { return false }
 
 // applyConfigProvider implements app.ApplyConfigProvider
 type applyConfigProvider struct {
@@ -103,13 +107,21 @@ func (c *applyConfigProvider) Cascade() string           { return "" }
 func (c *applyConfigProvider) DiffArgs() string          { return "" }
 func (c *applyConfigProvider) IncludeTests() bool        { return false }
 func (c *applyConfigProvider) ResetValues() bool         { return false }
-func (c *applyConfigProvider) RetainValuesFiles() bool   { return false }
 func (c *applyConfigProvider) ReuseValues() bool         { return false }
 func (c *applyConfigProvider) SkipCRDs() bool            { return false }
 func (c *applyConfigProvider) SkipDiffOnInstall() bool   { return c.skipDiffOnInstall }
 func (c *applyConfigProvider) StripTrailingCR() bool     { return false }
 func (c *applyConfigProvider) SuppressOutputLineRegex() []string { return nil }
 func (c *applyConfigProvider) SyncArgs() string          { return "" }
+func (c *applyConfigProvider) SkipSchemaValidation() bool { return false }
+func (c *applyConfigProvider) HideNotes() bool           { return false }
+func (c *applyConfigProvider) TakeOwnership() bool       { return false }
+func (c *applyConfigProvider) WaitRetries() int          { return 0 }
+func (c *applyConfigProvider) SyncReleaseLabels() bool   { return false }
+func (c *applyConfigProvider) TrackMode() string         { return "" }
+func (c *applyConfigProvider) TrackTimeout() int         { return 0 }
+func (c *applyConfigProvider) TrackLogs() bool           { return false }
+func (c *applyConfigProvider) EnforceNeedsAreInstalled() bool { return false }
 
 // diffConfigProvider implements app.DiffConfigProvider
 type diffConfigProvider struct {
@@ -151,6 +163,9 @@ func (c *diffConfigProvider) SkipDiffOnInstall() bool    { return false }
 func (c *diffConfigProvider) StripTrailingCR() bool      { return false }
 func (c *diffConfigProvider) SuppressDiff() bool         { return false }
 func (c *diffConfigProvider) SuppressOutputLineRegex() []string { return nil }
+func (c *diffConfigProvider) SkipSchemaValidation() bool  { return false }
+func (c *diffConfigProvider) TakeOwnership() bool         { return false }
+func (c *diffConfigProvider) EnforceNeedsAreInstalled() bool { return false }
 
 // templateConfigProvider implements app.TemplateConfigProvider
 type templateConfigProvider struct {
@@ -177,7 +192,9 @@ func (c *templateConfigProvider) PostRenderer() string        { return "" }
 func (c *templateConfigProvider) PostRendererArgs() []string  { return nil }
 
 // Override IncludeCRDs for template
-func (c *templateConfigProvider) IncludeCRDs() bool { return c.includeCRDs }
+func (c *templateConfigProvider) IncludeCRDs() bool          { return c.includeCRDs }
+func (c *templateConfigProvider) SkipSchemaValidation() bool  { return false }
+func (c *templateConfigProvider) EnforceNeedsAreInstalled() bool { return false }
 
 // destroyConfigProvider implements app.DestroyConfigProvider
 type destroyConfigProvider struct {
@@ -190,6 +207,7 @@ func (c *destroyConfigProvider) Cascade() string    { return "" }
 func (c *destroyConfigProvider) DeleteTimeout() int { return 0 }
 func (c *destroyConfigProvider) DeleteWait() bool   { return false }
 func (c *destroyConfigProvider) SkipCharts() bool   { return false }
+func (c *destroyConfigProvider) Args() string       { return "" }
 
 // Helper functions
 func convertToStringSlice(items []interface{}) []string {

@@ -19,7 +19,21 @@ func prepareHelmfileFile(fs *ReleaseSet) (string, error) {
 		}
 	}
 
-	bs := []byte(fs.Content)
+	// Resolve remote kustomize chart references before writing the helmfile
+	content := fs.Content
+	baseDir := fs.WorkingDirectory
+	if baseDir == "" {
+		baseDir = "."
+	}
+	rewritten, _, err := RewriteHelmfileContent(content, baseDir)
+	if err != nil {
+		logf("Warning: failed to rewrite remote kustomize references: %v", err)
+		// Fall through with original content
+	} else {
+		content = rewritten
+	}
+
+	bs := []byte(content)
 	first := sha256.New()
 	first.Write(bs)
 
