@@ -224,7 +224,20 @@ func NewCommandWithKubeconfig(fs *ReleaseSet, args ...string) (*exec.Cmd, error)
 		}
 	}
 
-	bs := []byte(fs.Content)
+	// Resolve remote kustomize chart references before writing the helmfile
+	content := fs.Content
+	baseDir := fs.WorkingDirectory
+	if baseDir == "" {
+		baseDir = "."
+	}
+	rewritten, _, err := RewriteHelmfileContent(content, baseDir)
+	if err != nil {
+		logf("Warning: failed to rewrite remote kustomize references: %v", err)
+	} else {
+		content = rewritten
+	}
+
+	bs := []byte(content)
 	first := sha256.New()
 	first.Write(bs)
 
@@ -451,7 +464,9 @@ func runBuild(ctx *sdk.Context, fs *ReleaseSet, flags ...string) (*State, error)
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	// NOTE: Do not defer os.Remove(fs.TmpHelmFilePath) here.
+	// The caller (CreateReleaseSet/UpdateReleaseSet via getDiffFile) manages
+	// cleanup. Removing it here races with the library executor's Apply.
 
 	//obtain exclusive lock
 	mutexKV.Lock(fs.WorkingDirectory)
@@ -470,7 +485,10 @@ func getHelmfileVersion(ctx *sdk.Context, fs *ReleaseSet) (*semver.Version, erro
 	if err != nil {
 		return nil, fmt.Errorf("creating command: %w", err)
 	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	// NOTE: Do not defer os.Remove(fs.TmpHelmFilePath) here.
+	// The caller (CreateReleaseSet/UpdateReleaseSet) manages cleanup of the
+	// helmfile temp file. Removing it here races with the library executor's
+	// Apply which needs the same file.
 
 	//obtain exclusive lock
 	mutexKV.Lock(fs.WorkingDirectory)
@@ -504,7 +522,9 @@ func runTemplate(ctx *sdk.Context, fs *ReleaseSet) (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	// NOTE: Do not defer os.Remove(fs.TmpHelmFilePath) here.
+	// The caller manages cleanup. Removing it here races with the library
+	// executor's Apply which needs the same file.
 
 	//obtain exclusive lock
 	mutexKV.Lock(fs.WorkingDirectory)
@@ -549,7 +569,9 @@ func runDiff(ctx *sdk.Context, fs *ReleaseSet, conf DiffConfig) (*State, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(fs.TmpHelmFilePath)
+	// NOTE: Do not defer os.Remove(fs.TmpHelmFilePath) here.
+	// The caller manages cleanup. Removing it here races with the library
+	// executor's Apply which needs the same file.
 
 	// Use the stable directory for storing temporary charts and values files
 	// so that helmfile-diff output becomes stables and terraform plan doesn't break.

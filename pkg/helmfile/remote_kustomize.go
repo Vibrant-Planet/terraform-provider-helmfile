@@ -60,42 +60,35 @@ func ParseGitKustomizeURL(chart string) (*GitKustomizeRef, bool) {
 // it returns the local path to the cloned directory. If not, it returns
 // an empty string (indicating the chart reference should be handled normally).
 //
+// Clones are keyed by repo+ref so that multiple subpaths within the same
+// repository share a single clone, avoiding redundant network fetches.
+//
 // The caller is responsible for cleaning up the returned directory.
 func ResolveRemoteKustomize(ref *GitKustomizeRef, baseDir string) (string, error) {
-	// Create a deterministic temp directory name based on the ref
-	dirName := fmt.Sprintf("kustomize-%s-%s-%s-%s",
+	// Clone directory is keyed by repo+ref only (not subpath), so multiple
+	// subpaths within the same repo reuse a single clone.
+	repoDirName := fmt.Sprintf("kustomize-%s-%s-%s",
 		ref.Org, ref.Repo,
-		sanitizePath(ref.Subpath),
 		sanitizePath(ref.Ref),
 	)
-	cloneDir := filepath.Join(baseDir, dirName)
+	cloneDir := filepath.Join(baseDir, repoDirName)
 
-	// If already cloned, reuse it
-	if _, err := os.Stat(cloneDir); err == nil {
-		targetDir := cloneDir
-		if ref.Subpath != "" {
-			targetDir = filepath.Join(cloneDir, ref.Subpath)
+	// Clone only if we haven't already
+	if _, err := os.Stat(cloneDir); err != nil {
+		cmd := exec.Command("git", "clone",
+			"--depth", "1",
+			"--branch", ref.Ref,
+			"--single-branch",
+			ref.CloneURL(),
+			cloneDir,
+		)
+		cmd.Env = os.Environ()
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git clone %s: %w\n%s", ref.CloneURL(), err, string(output))
 		}
-		if isKustomizeDir(targetDir) {
-			return targetDir, nil
-		}
-		return "", nil
 	}
 
-	// Clone the repository
-	cmd := exec.Command("git", "clone",
-		"--depth", "1",
-		"--branch", ref.Ref,
-		"--single-branch",
-		ref.CloneURL(),
-		cloneDir,
-	)
-	cmd.Env = os.Environ()
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("git clone %s: %w\n%s", ref.CloneURL(), err, string(output))
-	}
-
-	// Check if the target directory contains kustomization.yaml
+	// Resolve subpath within the clone
 	targetDir := cloneDir
 	if ref.Subpath != "" {
 		targetDir = filepath.Join(cloneDir, ref.Subpath)
@@ -179,8 +172,19 @@ func RewriteHelmfileContent(content string, baseDir string) (string, []string, e
 			return match
 		}
 
-		cleanupDirs = append(cleanupDirs, filepath.Join(kustomizeDir, fmt.Sprintf("kustomize-%s-%s-%s-%s",
-			ref.Org, ref.Repo, sanitizePath(ref.Subpath), sanitizePath(ref.Ref))))
+		repoDir := filepath.Join(kustomizeDir, fmt.Sprintf("kustomize-%s-%s-%s",
+			ref.Org, ref.Repo, sanitizePath(ref.Ref)))
+		// Only add to cleanup once per repo clone
+		found := false
+		for _, d := range cleanupDirs {
+			if d == repoDir {
+				found = true
+				break
+			}
+		}
+		if !found {
+			cleanupDirs = append(cleanupDirs, repoDir)
+		}
 
 		return prefix + localPath
 	})
