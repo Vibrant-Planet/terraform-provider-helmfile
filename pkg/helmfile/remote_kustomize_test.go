@@ -203,10 +203,11 @@ releases:
 	})
 
 	t.Run("rewrites git URL when kustomization.yaml exists", func(t *testing.T) {
-		// Set up a fake "cloned" repo
+		// Set up a fake "cloned" repo using the new naming convention:
+		// kustomize-{org}-{repo}-{ref} (subpath is NOT part of the dir name)
 		dir := t.TempDir()
-		cacheDir := filepath.Join(dir, ".kustomize-cache", "kustomize-testorg-testrepo-deploy-base-v1.0.0")
-		targetDir := filepath.Join(cacheDir, "deploy", "base")
+		cloneDir := filepath.Join(dir, ".kustomize-cache", "kustomize-testorg-testrepo-v1.0.0")
+		targetDir := filepath.Join(cloneDir, "deploy", "base")
 		if err := os.MkdirAll(targetDir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -239,9 +240,10 @@ releases:
 
 	t.Run("leaves non-kustomize git URL unchanged", func(t *testing.T) {
 		// Set up a fake "cloned" repo WITHOUT kustomization.yaml
+		// Clone dir uses kustomize-{org}-{repo}-{ref} naming
 		dir := t.TempDir()
-		cacheDir := filepath.Join(dir, ".kustomize-cache", "kustomize-testorg-helmchart-charts-myapp-v2.0.0")
-		targetDir := filepath.Join(cacheDir, "charts", "myapp")
+		cloneDir := filepath.Join(dir, ".kustomize-cache", "kustomize-testorg-helmchart-v2.0.0")
+		targetDir := filepath.Join(cloneDir, "charts", "myapp")
 		if err := os.MkdirAll(targetDir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -269,8 +271,10 @@ releases:
 	t.Run("handles multiple chart references", func(t *testing.T) {
 		dir := t.TempDir()
 
-		// Set up two fake repos, one kustomize and one not
-		kustomizeDir := filepath.Join(dir, ".kustomize-cache", "kustomize-org-kustomize-repo-base-v1.0.0", "base")
+		// Set up a fake cloned repo with kustomize dir
+		// Clone dir uses kustomize-{org}-{repo}-{ref} naming
+		cloneDir := filepath.Join(dir, ".kustomize-cache", "kustomize-org-kustomize-repo-v1.0.0")
+		kustomizeDir := filepath.Join(cloneDir, "base")
 		if err := os.MkdirAll(kustomizeDir, 0755); err != nil {
 			t.Fatal(err)
 		}
