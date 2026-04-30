@@ -43,7 +43,7 @@ func (c *baseConfigProvider) Args() string                       { return "" }
 func (c *baseConfigProvider) ConfigFile() string                 { return "" }
 func (c *baseConfigProvider) HelmBinary() string                 { return c.helmBinary }
 func (c *baseConfigProvider) KustomizeBinary() string            { return "" }
-func (c *baseConfigProvider) EnableLiveOutput() bool             { return true }
+func (c *baseConfigProvider) EnableLiveOutput() bool             { return false }
 func (c *baseConfigProvider) FileOrDir() string                  { return c.fileOrDir }
 func (c *baseConfigProvider) KubeContext() string                { return c.kubeContext }
 func (c *baseConfigProvider) Namespace() string                  { return c.namespace }

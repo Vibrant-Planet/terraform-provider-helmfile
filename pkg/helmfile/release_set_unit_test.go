@@ -7,6 +7,98 @@ import (
 	"testing"
 )
 
+func TestStripRepositoriesSection(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "strips repositories with OCI registry",
+			input: `repositories:
+  - name: ecr-oci
+    url: 007660002148.dkr.ecr.us-west-2.amazonaws.com
+    oci: true
+
+releases:
+  - name: myapp
+    chart: ecr-oci/myapp`,
+			expected: `releases:
+  - name: myapp
+    chart: ecr-oci/myapp`,
+		},
+		{
+			name: "strips repositories with multiple repos",
+			input: `repositories:
+  - name: stable
+    url: https://charts.helm.sh/stable
+  - name: ecr-oci
+    url: example.dkr.ecr.us-west-2.amazonaws.com
+    oci: true
+
+releases:
+  - name: myapp
+    chart: stable/nginx`,
+			expected: `releases:
+  - name: myapp
+    chart: stable/nginx`,
+		},
+		{
+			name: "no repositories section",
+			input: `releases:
+  - name: myapp
+    chart: ./charts/myapp`,
+			expected: `releases:
+  - name: myapp
+    chart: ./charts/myapp`,
+		},
+		{
+			name: "repositories with comments",
+			input: `repositories:
+  # OCI registry
+  - name: ecr-oci
+    url: example.dkr.ecr.us-west-2.amazonaws.com
+    oci: true
+
+# Our releases
+releases:
+  - name: myapp`,
+			expected: `# Our releases
+releases:
+  - name: myapp`,
+		},
+		{
+			name: "repositories with Go template syntax",
+			input: `repositories:
+  - name: ecr-oci
+    url: {{ .StateValues.registry_url }}
+    oci: true
+
+releases:
+  - name: eoapi
+    namespace: {{ .StateValues.namespace }}`,
+			expected: `releases:
+  - name: eoapi
+    namespace: {{ .StateValues.namespace }}`,
+		},
+		{
+			name:     "empty content",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripRepositoriesSection(tt.input)
+			if result != tt.expected {
+				t.Errorf("stripRepositoriesSection() mismatch.\nInput:\n%s\n\nExpected:\n%s\n\nGot:\n%s",
+					tt.input, tt.expected, result)
+			}
+		})
+	}
+}
+
 // TestGoTemplateFileExtension tests that the correct file extension is used
 // when enable_go_template is set to true or false
 func TestGoTemplateFileExtension(t *testing.T) {

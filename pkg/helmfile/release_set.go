@@ -986,6 +986,13 @@ func DeleteReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, exe
 		}
 	}
 
+	// Strip the repositories section from the helmfile content before destroy.
+	// Destroy only runs `helm uninstall` which doesn't need to pull charts from
+	// any repository. Removing repositories prevents helmfile from attempting
+	// registry login with potentially expired credentials (e.g., ECR OCI tokens
+	// stored in Terraform state that have since expired).
+	fs.Content = stripRepositoriesSection(fs.Content)
+
 	// Prepare helmfile file
 	tmpFile, err := prepareHelmfileFile(fs)
 	if err != nil {
@@ -1006,6 +1013,49 @@ func DeleteReleaseSet(ctx *sdk.Context, fs *ReleaseSet, d ResourceReadWrite, exe
 	}
 
 	return nil
+}
+
+// stripRepositoriesSection removes the top-level "repositories:" block from
+// helmfile YAML content. This is used during destroy to prevent helmfile from
+// attempting registry authentication (e.g., OCI/ECR login) which may fail with
+// expired credentials stored in Terraform state. The destroy operation only
+// runs `helm uninstall` and does not need to pull charts from any repository.
+//
+// The function handles both raw YAML and Go template (.gotmpl) content by
+// operating on the text line-by-line. It removes lines from the first
+// "repositories:" key until the next top-level key (a line that starts with a
+// non-space, non-comment character and is not part of the repositories block).
+func stripRepositoriesSection(content string) string {
+	var result []string
+	inRepos := false
+
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+
+		if !inRepos {
+			// Detect the start of the repositories section
+			if trimmed == "repositories:" || strings.HasPrefix(trimmed, "repositories:") {
+				inRepos = true
+				continue
+			}
+			result = append(result, line)
+		} else {
+			// We're inside the repositories section.
+			// Skip empty lines and indented content (part of repositories block)
+			if trimmed == "" {
+				continue
+			}
+			if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+				// Indented line -- part of the repositories block, skip it
+				continue
+			}
+			// Non-indented, non-empty line: this is the next top-level key or comment
+			inRepos = false
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
 
 func ImportReleaseSet(d *schema.ResourceData) (*schema.ResourceData, error) {
