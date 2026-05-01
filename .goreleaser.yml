@@ -40,4 +40,16 @@ checksum:
   algorithm: sha256
 
 signs:
-- artifacts: none
+- artifacts: checksum
+  args:
+  # Signs the checksum file with the GPG key whose fingerprint is provided
+  # as the GPG_FINGERPRINT env var by the release workflow. This produces a
+  # detached signature (.sig) alongside the SHA256SUMS file, which the
+  # Terraform Registry requires to publish a new version.
+  - "--batch"
+  - "--local-user"
+  - "{{ .Env.GPG_FINGERPRINT }}"
+  - "--output"
+  - "${signature}"
+  - "--detach-sign"
+  - "${artifact}"
